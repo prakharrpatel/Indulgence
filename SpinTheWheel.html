@@ -1,1 +1,431 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VniiStreamMP4 - Spin the Wheel</title>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1c1c20;
+            --border-color: #33333b;
+            --text-main: #ffffff;
+            --accent-red: #ff3b30;
+        }
+
+        *, *::before, *::after {
+            border-radius: 0 !important; /* Sharp crisp edges */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: monospace, sans-serif;
+            font-size: 13px;
+        }
+
+        .chan-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+
+        .chan-btn {
+            background-color: #2a2a32;
+            color: #ffffff;
+            border: 1px solid #444452;
+            font-weight: bold;
+            font-family: monospace;
+            transition: all 0.15s ease;
+        }
+        .chan-btn:hover {
+            background-color: #3f3f4d;
+            border-color: #ff3b30;
+            color: #ffffff;
+        }
+        .chan-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121214; }
+        ::-webkit-scrollbar-thumb { background: #33333b; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff3b30; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+
+    <!-- Main Game Workspace -->
+    <main class="w-full max-w-xl flex flex-col items-center justify-center relative z-10">
+        
+        <!-- Controls Bar -->
+        <div class="chan-card w-full p-2.5 mb-4 flex items-center justify-between gap-2 shadow-lg font-mono text-xs">
+            <div class="flex items-center gap-2">
+                <span class="font-bold text-zinc-400 uppercase tracking-wider text-[11px]">
+                    <i class="fa-solid fa-image text-rose-500 mr-1"></i> Images Only
+                </span>
+            </div>
+
+            <button onclick="reshuffleWheel()" id="btnReshuffle" class="chan-btn px-3 py-1 text-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-shuffle"></i> Shuffle
+            </button>
+        </div>
+
+        <!-- Wheel Canvas Container -->
+        <div class="chan-card p-6 flex flex-col items-center justify-center relative w-full shadow-2xl">
+            
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="absolute inset-0 bg-zinc-950/95 z-40 flex flex-col items-center justify-center gap-3 p-4 text-center font-mono">
+                <i class="fa-solid fa-spinner fa-spin text-4xl text-rose-500"></i>
+                <p id="loadingText" class="font-bold text-zinc-200">Fetching media from repo...</p>
+            </div>
+
+            <!-- Canvas Pointer Arrow -->
+            <div class="z-20 -mb-5 text-rose-500 text-4xl filter drop-shadow">
+                <i class="fa-solid fa-caret-down"></i>
+            </div>
+
+            <!-- HTML5 Wheel Canvas -->
+            <canvas id="wheelCanvas" width="480" height="480" class="max-w-full max-h-[60vh] border-4 border-zinc-800 bg-zinc-900 shadow-inner"></canvas>
+            
+            <!-- Spin Action Button -->
+            <button onclick="spinWheel()" id="btnSpin" class="mt-6 chan-btn px-10 py-3 text-base font-bold tracking-widest text-white uppercase border-2 border-rose-600 bg-rose-600 hover:bg-rose-700 shadow-xl">
+                <i class="fa-solid fa-play mr-2"></i> SPIN WHEEL
+            </button>
+        </div>
+    </main>
+
+    <!-- WINNER MEDIA PLAYER MODAL (NO DOWNLOAD / NO SHARE) -->
+    <div id="winnerModal" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center hidden p-4 font-mono select-none">
+        <div class="chan-card p-4 max-w-3xl w-full border-2 border-rose-600 space-y-3 shadow-2xl relative">
+            <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <span class="font-bold text-rose-500 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-trophy text-amber-400"></i> WON MEDIA ITEM
+                </span>
+                <button onclick="closeWinnerModal()" class="chan-btn px-2.5 py-0.5 text-zinc-300 font-bold">&times;</button>
+            </div>
+
+            <!-- Won Asset Player Frame -->
+            <div id="winnerStage" class="w-full aspect-video bg-black border border-zinc-800 flex items-center justify-center overflow-hidden">
+                <!-- Injected Media Object -->
+            </div>
+
+            <!-- Metadata info -->
+            <div class="space-y-1 bg-zinc-900 p-2 border border-zinc-800">
+                <div class="flex justify-between items-center">
+                    <span id="winnerFilename" class="font-bold text-xs text-zinc-100 truncate max-w-md">filename.mp4</span>
+                    <span id="winnerSize" class="text-[11px] text-zinc-400">0 KB</span>
+                </div>
+                <div id="winnerPath" class="text-[10px] text-zinc-500 truncate">path/to/media</div>
+            </div>
+
+            <!-- Modal Action Bar -->
+            <div class="flex justify-end gap-2 pt-1">
+                <button onclick="closeWinnerModal(); spinWheel();" class="chan-btn px-4 py-2 text-xs flex items-center gap-2 border-rose-600 text-rose-400">
+                    <i class="fa-solid fa-rotate-right"></i> Spin Again
+                </button>
+                <button onclick="closeWinnerModal()" class="chan-btn px-4 py-2 text-xs">
+                    Close Player
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT APPLICATION -->
+    <script>
+        const REPO = 'StreamMP4/VniiStreamMP4';
+        
+        const state = {
+            allFiles: [],
+            poolFiles: [],
+            wheelItems: [],
+            wheelAngle: 0,
+            wheelSpeed: 0,
+            isSpinning: false,
+            winningItem: null,
+            audioCtx: null,
+            particles: []
+        };
+
+        const DOM = {
+            statTotal: document.getElementById('statTotal'),
+            statPool: document.getElementById('statPool'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loadingText: document.getElementById('loadingText'),
+            typeFilter: document.getElementById('typeFilter'),
+            btnSpin: document.getElementById('btnSpin'),
+            winnerModal: document.getElementById('winnerModal'),
+            winnerStage: document.getElementById('winnerStage'),
+            winnerFilename: document.getElementById('winnerFilename'),
+            winnerPath: document.getElementById('winnerPath'),
+            winnerSize: document.getElementById('winnerSize')
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchRepoFiles();
+        });
+
+        // 1. Fetch 1400+ Files Recursively from GitHub Tree API
+        async function fetchRepoFiles() {
+            try {
+                const res = await fetch(`https://api.github.com/repos/${REPO}/git/trees/main?recursive=1`);
+                if (!res.ok) throw new Error('Failed to load GitHub repository tree');
+                
+                const data = await res.json();
+                // Strictly Image Extensions Only
+                const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+
+                state.allFiles = (data.tree || [])
+                    .filter(item => item.type === 'blob' && imageExts.some(ext => item.path.toLowerCase().endsWith(ext)))
+                    .map((item, index) => {
+                        const filename = item.path.split('/').pop();
+                        return {
+                            id: index + 1,
+                            path: item.path,
+                            filename: filename,
+                            size: item.size || 0,
+                            isVideo: false,
+                            rawUrl: `https://raw.githubusercontent.com/${REPO}/main/${item.path}`
+                        };
+                    });
+
+                applyFilter();
+            } catch (err) {
+                console.error(err);
+                DOM.loadingText.textContent = `Error loading repo: ${err.message}`;
+            } finally {
+                DOM.loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        // 2. Load Slice Wheel Items from Image Pool
+        function applyFilter() {
+            state.poolFiles = [...state.allFiles];
+            reshuffleWheel();
+        }
+
+        function reshuffleWheel() {
+            if (state.isSpinning) return;
+            if (state.poolFiles.length === 0) {
+                alert('No media available for selected filter.');
+                return;
+            }
+
+            // Pick up to 12 slices
+            const shuffled = [...state.poolFiles].sort(() => 0.5 - Math.random());
+            state.wheelItems = shuffled.slice(0, Math.min(12, shuffled.length));
+            state.wheelAngle = 0;
+            drawWheel();
+        }
+
+        // 3. Web Audio Synthesis for Wheel Segment Ticks
+        function playTickSound() {
+            try {
+                if (!state.audioCtx) {
+                    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+                
+                const osc = state.audioCtx.createOscillator();
+                const gain = state.audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(500, state.audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(120, state.audioCtx.currentTime + 0.035);
+                gain.gain.setValueAtTime(0.12, state.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.035);
+                osc.connect(gain);
+                gain.connect(state.audioCtx.destination);
+                osc.start();
+                osc.stop(state.audioCtx.currentTime + 0.035);
+            } catch (e) {}
+        }
+
+        function playVictorySound() {
+            try {
+                if (!state.audioCtx) return;
+                const notes = [350, 520, 700, 1050];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => {
+                        const osc = state.audioCtx.createOscillator();
+                        const gain = state.audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, state.audioCtx.currentTime);
+                        gain.gain.setValueAtTime(0.18, state.audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.18);
+                        osc.connect(gain);
+                        gain.connect(state.audioCtx.destination);
+                        osc.start();
+                        osc.stop(state.audioCtx.currentTime + 0.18);
+                    }, idx * 80);
+                });
+            } catch (e) {}
+        }
+
+        // 4. Wheel Drawing Engine
+        function drawWheel() {
+            const canvas = document.getElementById('wheelCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const numSegments = state.wheelItems.length;
+            if (numSegments === 0) return;
+
+            const arc = (Math.PI * 2) / numSegments;
+            const radius = canvas.width / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(radius, radius);
+            ctx.rotate(state.wheelAngle);
+
+            // Vibrant High-Contrast Rainbow Palette
+            const colors = [
+                '#FF2D55', '#FF9500', '#FFCC00', '#34C759',
+                '#00C7BE', '#30B0C7', '#32ADE6', '#007AFF',
+                '#5856D6', '#AF52DE', '#FF2D55', '#E0245E'
+            ];
+
+            for (let i = 0; i < numSegments; i++) {
+                const angle = i * arc;
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius - 6, angle, angle + arc);
+                ctx.lineTo(0, 0);
+                ctx.fill();
+                ctx.strokeStyle = '#121214';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                // Text Labels
+                ctx.save();
+                ctx.rotate(angle + arc / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.shadowBlur = 4;
+                ctx.font = 'bold 12px monospace';
+                
+                const label = state.wheelItems[i].filename.length > 15
+                    ? state.wheelItems[i].filename.substring(0, 12) + '...'
+                    : state.wheelItems[i].filename;
+                ctx.fillText(label, radius - 20, 4);
+                ctx.restore();
+            }
+
+            // Center Ring Pin
+            ctx.beginPath();
+            ctx.arc(0, 0, 24, 0, Math.PI * 2);
+            ctx.fillStyle = '#1c1c20';
+            ctx.fill();
+            ctx.strokeStyle = '#ff3b30';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Render Confetti Particles
+            if (state.particles.length > 0) {
+                state.particles.forEach((p, idx) => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.15;
+                    p.size *= 0.95;
+                    if (p.size < 0.5) state.particles.splice(idx, 1);
+                });
+            }
+        }
+
+        // 5. Physics Physics Animation Loop
+        function spinWheel() {
+            if (state.isSpinning || state.wheelItems.length === 0) return;
+            state.isSpinning = true;
+            DOM.btnSpin.disabled = true;
+
+            state.wheelSpeed = Math.random() * 0.28 + 0.38;
+            let lastSegment = -1;
+
+            function animateSpin() {
+                if (!state.isSpinning) return;
+
+                state.wheelAngle += state.wheelSpeed;
+                state.wheelSpeed *= 0.985; // Friction coefficient
+
+                const numSegments = state.wheelItems.length;
+                const arc = (Math.PI * 2) / numSegments;
+                const currentSegment = Math.floor((Math.PI * 2 - (state.wheelAngle % (Math.PI * 2))) / arc) % numSegments;
+
+                if (currentSegment !== lastSegment) {
+                    playTickSound();
+                    lastSegment = currentSegment;
+                }
+
+                drawWheel();
+
+                if (state.wheelSpeed < 0.002) {
+                    state.isSpinning = false;
+                    DOM.btnSpin.disabled = false;
+                    state.winningItem = state.wheelItems[currentSegment];
+                    triggerWinner(state.winningItem);
+                } else {
+                    requestAnimationFrame(animateSpin);
+                }
+            }
+
+            animateSpin();
+        }
+
+        // 6. Confetti Blast & Winner Modal Reveal
+        function triggerWinner(file) {
+            playVictorySound();
+
+            state.particles = [];
+            const particleColors = ['#800000', '#e04000', '#f59e0b', '#d9bfb7', '#ffffff'];
+            for (let i = 0; i < 60; i++) {
+                state.particles.push({
+                    x: 240,
+                    y: 240,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.8) * 14,
+                    size: Math.random() * 6 + 3,
+                    color: particleColors[Math.floor(Math.random() * particleColors.length)]
+                });
+            }
+
+            let frames = 0;
+            function runParticles() {
+                if (frames++ < 45 && state.particles.length > 0) {
+                    drawWheel();
+                    requestAnimationFrame(runParticles);
+                }
+            }
+            runParticles();
+
+            // Populate Modal Stage (Image Pure Viewing)
+            DOM.winnerStage.innerHTML = `<img src="${file.rawUrl}" class="w-full h-full object-contain">`;
+
+            DOM.winnerFilename.textContent = file.filename;
+            DOM.winnerPath.textContent = file.path;
+            DOM.winnerSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+
+            setTimeout(() => {
+                DOM.winnerModal.classList.remove('hidden');
+            }, 500);
+        }
+
+        function closeWinnerModal() {
+            DOM.winnerModal.classList.add('hidden');
+            DOM.winnerStage.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
